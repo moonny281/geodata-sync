@@ -239,4 +239,4 @@ crontab -e
 
 - 路由器到 Worker 之间是标准 HTTPS 请求，流量特征和访问任意普通网站一致
 - 建议这个"geodata 分发"用的域名/Worker 和你其他代理基础设施（比如 VPN/代理节点）保持独立，避免因为共用同一个域名或 IP 造成关联风险
-- `/sync` 端点通过 Secret Token 保护，避免被随意探测或触发
+- `/sync` 端点通过 Secret Token 保护，避免被随意探测或触发。
