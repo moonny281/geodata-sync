@@ -122,7 +122,7 @@ curl -o geoip.dat https://geodata-sync.<你的子域>.workers.dev/geoip.dat
 
 ### 第七步：确认定时任务已生效
 
-Dashboard → 你的 Worker → **Triggers** 标签页，能看到 Cron Trigger `0 4 * * *`（UTC 时间，对应北京时间中午 12 点），以后每天自动抓取一次，不需要手动干预。如果想改频率，直接改 `wrangler.toml` 里的 `crons` 字段并 push 到仓库即可自动生效。
+Dashboard → 你的 Worker → **Triggers** 标签页，能看到 Cron Trigger `0 22 * * *`（UTC 时间，对应北京时间次日早上 6 点），以后每天自动抓取一次，不需要手动干预。如果想改频率或时间，直接改 `wrangler.toml` 里的 `crons` 字段并 push 到仓库即可自动生效——Cloudflare 的 cron 表达式固定按 UTC 计时，换算北京时间时记得减 8 小时（比如想要北京时间某天 X 点执行，`crons` 就填 `X-8` 点，结果是负数就加 24 变成前一天）。
 
 ### 第八步（推荐）：绑定自定义域名
 
@@ -201,11 +201,19 @@ ls -la /usr/share/v2ray/
 crontab -e
 ```
 
-加一行（比如每 6 小时检查一次，因为有 checksums 比对，没更新时几乎不耗流量）：
+加一行，比如每周一凌晨 1 点检查一次（因为服务端每天早上 6 点才更新一次源数据，检查太频繁没有意义，一周一次足够，几乎不耗流量）：
 
 ```
-0 */6 * * * /root/update-geodata-client-cf.sh
+0 1 * * 1 /root/update-geodata-client-cf.sh
 ```
+
+字段含义：`分 时 日 月 周`，`周` 这一列 BusyBox crond 用 `0`/`7` 表示周日、`1` 表示周一，所以 `1` 就是每周一。
+
+> **先确认路由器系统时区**：上面这行按路由器本地时间执行。ImmortalWrt 出厂有的固件默认是 UTC，不一定是北京时间。执行前先跑一次 `date` 看当前系统时间是否已经是北京时间；如果显示的是 UTC，要么在 LuCI → 系统 → 系统 里把时区改成 `Asia/Shanghai`，要么把上面的 `1` 点改成 UTC 对应的 `17` 点（前一天周日 17:00 UTC = 周一 01:00 北京时间）：
+> ```
+> 0 17 * * 0 /root/update-geodata-client-cf.sh
+> ```
+> （注意这种情况下 crontab 里周字段要填 `0`，即 UTC 周日，因为北京时间周一凌晨对应的还是 UTC 周日晚上）
 
 保存后重启 cron 服务：
 

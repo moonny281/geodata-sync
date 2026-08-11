@@ -7,7 +7,7 @@ compatibility_date = "2026-08-01"
 binding = "GEODATA_BUCKET"
 bucket_name = "geodata-sync"
 
-# 定时任务：每天 UTC 4:00（北京时间中午 12 点）执行一次抓取
-# cron 表达式基于 UTC 时间，可按需调整
+# 定时任务：每天 UTC 22:00（北京时间次日早上 6:00）执行一次抓取
+# cron 表达式基于 UTC 时间，北京时间 = UTC + 8 小时，可按需调整
 [triggers]
-crons = ["0 4 * * *"]
+crons = ["0 22 * * *"]
