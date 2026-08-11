@@ -1,0 +1,5 @@
+# 本地用 `wrangler dev` 调试时，复制这个文件为 .dev.vars 并填入真实值
+# .dev.vars 已在 .gitignore 中排除，不会被提交到仓库
+# 生产环境的 ADMIN_TOKEN 需要在 Cloudflare Dashboard 里单独设置，与这个文件无关
+
+ADMIN_TOKEN=your-local-test-token

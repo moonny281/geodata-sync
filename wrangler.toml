@@ -1,0 +1,13 @@
+name = "geodata-sync"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+# R2 存储桶绑定，需先在 Cloudflare Dashboard 或用 `wrangler r2 bucket create geodata-sync` 创建
+[[r2_buckets]]
+binding = "GEODATA_BUCKET"
+bucket_name = "geodata-sync"
+
+# 定时任务：每天 UTC 4:00（北京时间中午 12 点）执行一次抓取
+# cron 表达式基于 UTC 时间，可按需调整
+[triggers]
+crons = ["0 4 * * *"]

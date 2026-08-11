@@ -1,0 +1,13 @@
+{
+  "name": "geodata-sync",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloudflare Worker + R2：定时抓取 v2ray-rules-dat 的 geoip.dat/geosite.dat 并对外分发",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
