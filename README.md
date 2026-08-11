@@ -20,7 +20,8 @@ GitHub (v2ray-rules-dat releases)
 - 路由器本地网络访问 GitHub 可能不稳定或被限制，改为访问自己的 Cloudflare Worker，走的是普通 HTTPS 请求，流量特征和访问任何网站没有区别
 - Cloudflare 自定义域名的 TLS 证书全自动签发续期，不需要自己管理证书文件
 - 客户端每次只需先请求几十字节的 `checksums.txt` 判断是否有更新，没变化就不下载大文件，省流量
-- 下载后用 sha256 校验，替换前自动备份旧文件，避免文件损坏导致代理服务起不来
+- 下载后先用 sha256 校验完整性，通过校验才会原地替换旧文件；客户端不做备份，直接替换，节省软路由本就紧张的存储空间——因为替换前已经校验过内容可信，不需要额外保留旧文件用于回滚
+- Cloudflare R2 端同理：每次抓取到新内容直接以同一个 key（`geoip.dat`/`geosite.dat`）覆盖写入，旧版本对象不会被保留，不会产生冗余存储占用
 
 ## 目录结构
 
@@ -212,15 +213,21 @@ crontab -e
 /etc/init.d/cron restart
 ```
 
-### 出问题时如何回滚
+### 关于文件替换（不做备份）
 
-脚本每次替换文件前会自动备份成 `.bak`：
+脚本**不会**在替换前生成 `.bak` 备份，下载的临时文件通过 sha256 校验后直接 `mv` 覆盖旧文件，这样每次更新都不会在软路由本就有限的存储空间里多占一份文件。
 
-```sh
-cp /usr/share/v2ray/geoip.dat.bak /usr/share/v2ray/geoip.dat
-cp /usr/share/v2ray/geosite.dat.bak /usr/share/v2ray/geosite.dat
-/etc/init.d/daed restart
-```
+安全性由两层保证：
+1. 下载完成后先比对 checksums.txt 里的 sha256，校验不通过的文件会被直接丢弃、不会替换，旧文件保持不变
+2. 只有校验通过、内容可信的文件才会执行替换，所以正常情况下不存在"替换后发现文件损坏"需要回滚的场景
+
+如果确实怀疑当前文件有问题（比如上游 `v2ray-rules-dat` 本身发布了有缺陷的版本），可以：
+- 手动触发 Cloudflare 端重新抓取：浏览器打开 `https://<domain>/sync?token=<ADMIN_TOKEN>`，确认拉到的是修复后的新版本
+- 在路由器上手动删除本地文件后重新执行一次脚本，会被判定为"本地不存在，必然触发更新"重新下载：
+  ```sh
+  rm -f /usr/share/v2ray/geoip.dat /usr/share/v2ray/geosite.dat
+  /root/update-geodata-client-cf.sh
+  ```
 
 ---
 

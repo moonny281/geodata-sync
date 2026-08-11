@@ -128,12 +128,16 @@ update_one() {
 
     actual_sha=$(sha256sum "$tmp" | awk '{print $1}')
     if [ "$actual_sha" != "$expect_sha" ]; then
-        log "$name 校验和不匹配（期望 ${expect_sha:0:12}... 实际 ${actual_sha:0:12}...），丢弃该文件"
+        # 注意：${var:0:12} 是 bash 扩展语法，busybox ash/dash 不支持，统一用 cut 截取，避免脚本报语法错误
+        expect_short=$(echo "$expect_sha" | cut -c1-12)
+        actual_short=$(echo "$actual_sha" | cut -c1-12)
+        log "$name 校验和不匹配（期望 ${expect_short}... 实际 ${actual_short}...），丢弃该文件"
         rm -f "$tmp"
         return
     fi
 
-    [ -f "$dest" ] && cp -f "$dest" "$dest.bak"
+    # 不做备份：直接替换，省掉软路由上双倍占用的存储空间；
+    # 校验和已经在上面核对过，替换的内容是可信的，无需保留旧文件用于回滚
     mv -f "$tmp" "$dest"
     log "$name 已更新并通过校验"
     CHANGED=1
