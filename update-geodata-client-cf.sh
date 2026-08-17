@@ -12,6 +12,11 @@ set -eu
 # ---------- 可调整配置 ----------
 # 改成你实际绑定的自定义域名，或先用 Workers 默认的 *.workers.dev 域名测试
 GEODATA_SERVER="https://geodata-sync.your-subdomain.workers.dev"
+# 自动定时任务的执行频率（路由器本地时间），格式同 crontab：分 时 日 月 周
+# 默认每周一凌晨 1 点；如果路由器系统时区不是北京时间（GMT+8），需要自行换算
+CRON_SCHEDULE="0 1 * * 1"
+# 是否在首次运行时自动写入 crontab；不想要这个行为可以改成 0，自己手动 crontab -e
+AUTO_INSTALL_CRON=1
 # ---------------------------------------------------
 
 DEST_DIR="/usr/share/v2ray"
@@ -28,6 +33,71 @@ log() {
     logger -t "$LOG_TAG" "$1"
     echo "[$LOG_TAG] $1"
 }
+
+# ---------- 首次运行自动安装 / 同步定时任务 ----------
+# 目的：脚本上传到路由器后，只要手动跑一次，以后就不用再单独 `crontab -e`。
+# 通过检测 crontab 文件里有没有已经写过“当前脚本路径”这一行来判断是不是第一次运行；
+# 已经装过、且调度频率和当前 CRON_SCHEDULE 一致就跳过；如果频率被改过，会用新的一行
+# 替换旧的（只替换这一行，不影响 crontab 里其他任务），保证改配置后重跑一次就生效。
+install_cron() {
+    [ "$AUTO_INSTALL_CRON" -eq 1 ] || return 0
+
+    crontab_file="/etc/crontabs/root"
+    script_path=$(readlink -f "$0" 2>/dev/null || echo "$0")
+    desired_line="$CRON_SCHEDULE sh $script_path"
+
+    # 权限不够就跳过，不阻塞本次更新流程，脚本仍然按需手动运行也能正常工作
+    crontab_dir=$(dirname "$crontab_file")
+    if [ ! -d "$crontab_dir" ] || { [ -e "$crontab_file" ] && [ ! -w "$crontab_file" ]; } || { [ ! -e "$crontab_file" ] && [ ! -w "$crontab_dir" ]; }; then
+        log "没有权限写入 $crontab_file，跳过自动安装定时任务，可以自己执行 crontab -e 手动加一行"
+        return 0
+    fi
+
+    if [ ! -f "$crontab_file" ]; then
+        if ! : > "$crontab_file" 2>/dev/null; then
+            log "无法创建 $crontab_file，跳过自动安装定时任务"
+            return 0
+        fi
+    fi
+
+    if grep -qsF "$script_path" "$crontab_file" 2>/dev/null; then
+        existing_line=$(grep -F "$script_path" "$crontab_file" 2>/dev/null | head -n 1)
+        if [ "$existing_line" = "$desired_line" ]; then
+            return 0
+        fi
+
+        # 调度频率变了：只替换含有本脚本路径的那一行，其他任务原样保留
+        tmp_crontab="$crontab_file.tmp.$$"
+        grep_rc=0
+        grep -vF "$script_path" "$crontab_file" > "$tmp_crontab" 2>/dev/null || grep_rc=$?
+        if [ "$grep_rc" -gt 1 ]; then
+            rm -f "$tmp_crontab"
+            log "更新 $crontab_file 失败，跳过自动同步定时任务，可以自己执行 crontab -e 手动改"
+            return 0
+        fi
+        if ! echo "$desired_line" >> "$tmp_crontab" 2>/dev/null || ! mv -f "$tmp_crontab" "$crontab_file" 2>/dev/null; then
+            rm -f "$tmp_crontab"
+            log "更新 $crontab_file 失败，跳过自动同步定时任务，可以自己执行 crontab -e 手动改"
+            return 0
+        fi
+        if [ -x /etc/init.d/cron ]; then
+            /etc/init.d/cron restart >/dev/null 2>&1 || true
+        fi
+        log "检测到调度频率变化，已同步为「$CRON_SCHEDULE」"
+        return 0
+    fi
+
+    if ! echo "$desired_line" >> "$crontab_file" 2>/dev/null; then
+        log "写入 $crontab_file 失败，跳过自动安装定时任务，可以自己执行 crontab -e 手动加一行"
+        return 0
+    fi
+    if [ -x /etc/init.d/cron ]; then
+        /etc/init.d/cron restart >/dev/null 2>&1 || true
+    fi
+    log "首次运行：已自动写入定时任务（$CRON_SCHEDULE，路由器本地时间），以后不用再手动 crontab -e 了"
+}
+
+install_cron
 
 DOWNLOADER=""
 if command -v curl >/dev/null 2>&1; then
